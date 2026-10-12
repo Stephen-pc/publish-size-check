@@ -252,6 +252,23 @@ def main():
         code, out = run("--validate", "--spec-path", asp)
         check("能抓出 aspect 不自洽", code == 1 and "不自洽" in out, out[:120])
 
+        print("\n=== 输出编码（Windows 控制台兼容）===")
+        # 本工具输出全是中文。Windows 上 Python 默认按控制台代码页编码，
+        # 会抛 UnicodeEncodeError 直接崩——而 Linux/macOS 默认 UTF-8，
+        # 所以这个 bug 在开发机上永远测不出来（CI 的 Windows 任务抓到的）。
+        # 这里强制用非 UTF-8 编码跑一遍，确保输出层做了兜底。
+        import os as _os
+        demo = HERE.parent / "demo.py"
+        for enc in ("cp1252", "cp936", "ascii"):
+            env = dict(_os.environ, PYTHONIOENCODING=enc)
+            for name, cmd in (("spec.py", [PY, str(SPEC), "--validate"]),
+                              ("demo.py", [PY, str(demo)])):
+                r = subprocess.run(cmd, capture_output=True, text=True,
+                                   encoding="utf-8", env=env)
+                combined = (r.stdout or "") + (r.stderr or "")
+                ok = r.returncode == 0 and "UnicodeEncodeError" not in combined
+                check(f"非 UTF-8 环境（{enc}）下 {name} 不崩溃", ok, combined[-120:])
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

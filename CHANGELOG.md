@@ -2,6 +2,13 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.1] - 2026-10-12
+
+### 修复
+- **Windows 上输出中文直接崩溃。** Windows 的 Python 默认按控制台代码页（cp1252 / cp936）编码 stdout，而本工具的输出全是中文，一运行就抛 `UnicodeEncodeError` 退出。Linux / macOS 默认 UTF-8，所以这个 bug 在开发机上完全看不到——是 CI 的 Windows 任务抓出来的。
+  - 修法：启动时强制 stdout / stderr 用 UTF-8，三重兜底（`reconfigure` → 重建 `TextIOWrapper` → 放弃但不抛异常）。
+  - 加了 3 项回归测试（cp1252 / cp936 / ascii 各跑一遍），并新增一条专门的 CI 任务守住。
+
 ## [2.1.0] - 2026-10-12
 
 ### 新增

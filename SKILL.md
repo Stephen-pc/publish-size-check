@@ -1,6 +1,6 @@
 ---
 name: publish-check
-version: 2.1.0
+version: 2.1.1
 display_name: 发布尺寸检查
 display_name_en: Publish Size Check
 

@@ -84,6 +84,32 @@ jobs:
           print("OK：仅使用标准库")
           PY
 
+  windows-encoding:
+    name: Windows 控制台编码
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Windows 上 Python 默认按控制台代码页（cp1252/cp936）编码 stdout，
+      # 输出中文会抛 UnicodeEncodeError。Linux/macOS 默认 UTF-8，所以这个坑
+      # 在开发机上根本看不到 —— 曾经真的让 CI 挂了，故单独立一条守住。
+      - name: 强制非 UTF-8 代码页下运行
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($enc in @("cp1252", "cp936", "ascii")) {
+            Write-Host "--- PYTHONIOENCODING=$enc ---"
+            $env:PYTHONIOENCODING = $enc
+            python scripts/spec.py --validate
+            if ($LASTEXITCODE -ne 0) {
+              throw "在 $enc 编码下退出码为 $LASTEXITCODE"
+            }
+          }
+          Write-Host "OK：非 UTF-8 编码下均可正常运行"
+
   spec-freshness:
     name: 规格库时效
     runs-on: ubuntu-latest

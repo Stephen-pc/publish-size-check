@@ -20,6 +20,39 @@ import struct
 import sys
 from pathlib import Path
 
+
+def _force_utf8_stdout():
+    """强制标准输出用 UTF-8。
+
+    本工具的输出全是中文。Windows 上 Python 默认按控制台代码页（常见 cp1252 /
+    cp936）编码，一输出中文就抛 UnicodeEncodeError 直接崩掉——而 Windows 恰恰
+    是重要受众。Linux / macOS 默认就是 UTF-8，所以这个坑在开发机上根本看不到。
+
+    这里三重兜底：Python 3.7+ 用 reconfigure；老版本退回到替换 sys.stdout。
+    失败也不抛异常——输出编码不该成为程序无法运行的理由。
+    """
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+            continue
+        except (AttributeError, ValueError, OSError):
+            pass
+        try:
+            import io
+            buf = getattr(stream, "buffer", None)
+            if buf is not None:
+                setattr(sys, stream_name,
+                        io.TextIOWrapper(buf, encoding="utf-8", errors="replace"))
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+_force_utf8_stdout()
+
+
 def _find_spec_path():
     """定位 platforms.json，兼容三种使用方式。
 
