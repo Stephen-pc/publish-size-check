@@ -1,5 +1,10 @@
 # publish-size-check
 
+[![CI](https://github.com/Stephen-pc/publish-size-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Stephen-pc/publish-size-check/actions/workflows/ci.yml)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#为什么需要它)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+
 > 发布尺寸检查 —— 对照目标平台的几何规格，告诉你这张图**能不能发、是哪一项过不了**。
 
 零依赖（纯标准库，不需要 Pillow）、原件只读、结果确定。
@@ -43,7 +48,7 @@ $ python scripts/spec.py --check cover.png --target 小红书
 ## 快速开始
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/publish-size-check.git
+git clone https://github.com/Stephen-pc/publish-size-check.git
 cd publish-size-check
 
 # 一键看效果：跑五种典型场景，自动清理临时文件

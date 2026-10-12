@@ -34,8 +34,8 @@ dev = []
 publish-size-check = "spec:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/publish-size-check"
-Issues = "https://github.com/YOUR_USERNAME/publish-size-check/issues"
+Homepage = "https://github.com/Stephen-pc/publish-size-check"
+Issues = "https://github.com/Stephen-pc/publish-size-check/issues"
 
 [tool.setuptools]
 py-modules = ["spec"]
