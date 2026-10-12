@@ -21,6 +21,15 @@ HERE = Path(__file__).resolve().parent
 SPEC = HERE / "spec.py"
 PY = sys.executable
 
+# 复用 spec.py 的 UTF-8 输出兜底。测试脚本自己也打印中文标题，
+# Windows 上同样会因控制台代码页而崩——这里必须一并保护。
+sys.path.insert(0, str(HERE))
+try:
+    import spec as _spec_mod
+    _spec_mod._force_utf8_stdout()
+except ImportError:
+    pass
+
 PASS, FAIL = [], []
 
 
@@ -257,17 +266,45 @@ def main():
         # 会抛 UnicodeEncodeError 直接崩——而 Linux/macOS 默认 UTF-8，
         # 所以这个 bug 在开发机上永远测不出来（CI 的 Windows 任务抓到的）。
         # 这里强制用非 UTF-8 编码跑一遍，确保输出层做了兜底。
+        #
+        # 注意：这个坑踩过两次——先漏了 demo.py，又漏了测试脚本自己。
+        # 所以这里把「所有会打印中文的入口」全列进来，一个都不能少。
         import os as _os
         demo = HERE.parent / "demo.py"
+        # 注意：不要把 test_spec.py 自己作为子进程目标——那会递归启动整套测试，
+        # 子又生子，直接把机器拖死。（踩过一次，表现为 SIGTERM/超时无输出。）
+        # 测试脚本自身的编码安全用下面的独立探针验证。
+        entries = [
+            ("spec.py", [PY, str(SPEC), "--validate"]),
+            ("demo.py", [PY, str(demo)]),
+        ]
         for enc in ("cp1252", "cp936", "ascii"):
             env = dict(_os.environ, PYTHONIOENCODING=enc)
-            for name, cmd in (("spec.py", [PY, str(SPEC), "--validate"]),
-                              ("demo.py", [PY, str(demo)])):
+            for name, cmd in entries:
                 r = subprocess.run(cmd, capture_output=True, text=True,
                                    encoding="utf-8", env=env)
                 combined = (r.stdout or "") + (r.stderr or "")
                 ok = r.returncode == 0 and "UnicodeEncodeError" not in combined
                 check(f"非 UTF-8 环境（{enc}）下 {name} 不崩溃", ok, combined[-120:])
+
+        # 自证：本测试脚本自己也打印中文标题，同样需要编码兜底。
+        # 用一个只导入本模块并打印中文的最小探针验证，不重跑整套测试。
+        probe = tmp / "enc_probe.py"
+        probe.write_text(
+            "import sys, importlib.util as u\n"
+            "sys.path.insert(0, r'" + str(HERE) + "')\n"
+            "import spec as s\n"
+            "s._force_utf8_stdout()\n"
+            "print('=== 规格库自检 ===')\n"
+            "print('这是中文探针输出')\n",
+            encoding="utf-8")
+        env = dict(_os.environ, PYTHONIOENCODING="cp1252")
+        r = subprocess.run([PY, str(probe)], capture_output=True, text=True,
+                           encoding="utf-8", env=env)
+        combined = (r.stdout or "") + (r.stderr or "")
+        check("测试脚本自身在窄编码下不崩溃",
+              "UnicodeEncodeError" not in combined and "中文探针输出" in combined,
+              combined[-160:])
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

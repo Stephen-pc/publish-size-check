@@ -28,28 +28,46 @@ def _force_utf8_stdout():
     cp936）编码，一输出中文就抛 UnicodeEncodeError 直接崩掉——而 Windows 恰恰
     是重要受众。Linux / macOS 默认就是 UTF-8，所以这个坑在开发机上根本看不到。
 
-    这里三重兜底：Python 3.7+ 用 reconfigure；老版本退回到替换 sys.stdout。
-    失败也不抛异常——输出编码不该成为程序无法运行的理由。
+    设计要点（都是踩过坑才加的）：
+    - 幂等：已经是 UTF-8 就直接返回，避免重复包装流。多个入口（spec.py /
+      demo.py / test_spec.py）会各自调用一次，重复 reconfigure 会出问题。
+    - 不碰 buffer 重建：只在 reconfigure 不可用时才退化处理，且不重新包装
+      已有的 TextIOWrapper——那会让旧缓冲丢失甚至阻塞。
+    - 失败不抛异常：输出编码不该成为程序跑不起来的原因。
     """
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
         if stream is None:
             continue
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+        # 幂等保护：已经是 UTF-8 就不用管了。
+        enc = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if enc in ("utf8", "utf8mb4"):
             continue
-        except (AttributeError, ValueError, OSError):
-            pass
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+                continue
+            except (AttributeError, ValueError, OSError):
+                pass
+        # 退化路径：Python 3.6 及更早没有 reconfigure。此时才重建包装，
+        # 并确保先冲刷旧缓冲，否则可能丢输出。
         try:
             import io
             buf = getattr(stream, "buffer", None)
             if buf is not None:
+                try:
+                    stream.flush()
+                except (ValueError, OSError):
+                    pass
                 setattr(sys, stream_name,
-                        io.TextIOWrapper(buf, encoding="utf-8", errors="replace"))
+                        io.TextIOWrapper(buf, encoding="utf-8",
+                                         errors="replace", line_buffering=True))
         except (AttributeError, ValueError, OSError):
             pass
 
 
+# 只在被直接执行或首次导入时调一次；函数本身幂等，重复调用无害。
 _force_utf8_stdout()
 
 
