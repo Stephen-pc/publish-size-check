@@ -46,6 +46,9 @@ $ python scripts/spec.py --check cover.png --target 小红书
 git clone https://github.com/YOUR_USERNAME/publish-size-check.git
 cd publish-size-check
 
+# 一键看效果：跑五种典型场景，自动清理临时文件
+python demo.py
+
 # 体检一个文件（指定平台）
 python scripts/spec.py --check cover.png --target 小红书
 

@@ -36,6 +36,7 @@ jobs:
           python scripts/spec.py --list
           python scripts/spec.py --spec 小红书
           python scripts/spec.py --help
+          python demo.py > /dev/null
 
   no-deps:
     name: 保证零依赖
