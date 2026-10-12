@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 测试 (Python ${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.10", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 规格库自检
+        run: python scripts/spec.py --validate
+
+      - name: 回归测试
+        run: python scripts/test_spec.py
+
+      - name: 冒烟测试（各命令可正常返回）
+        shell: bash
+        run: |
+          python scripts/spec.py --list
+          python scripts/spec.py --spec 小红书
+          python scripts/spec.py --help
+
+  no-deps:
+    name: 保证零依赖
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 本项目的核心承诺是「零依赖、开箱即跑」。
+      # 这条 CI 会拦住任何悄悄引入第三方 import 的提交。
+      - name: 检查未引入第三方依赖
+        run: |
+          python - <<'PY'
+          import ast, sys
+          from pathlib import Path
+
+          ALLOWED = {
+              "argparse", "json", "os", "struct", "sys", "zlib", "re",
+              "tempfile", "subprocess", "shutil", "pathlib", "typing",
+              "collections", "math", "itertools", "textwrap", "unicodedata",
+              "datetime", "io", "unicodedata", "hashlib",
+              "spec", "test_spec",
+          }
+          bad = []
+          for f in list(Path("scripts").glob("*.py")):
+              tree = ast.parse(f.read_text(encoding="utf-8"))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      for a in node.names:
+                          mod = a.name.split(".")[0]
+                          if mod not in ALLOWED:
+                              bad.append(f"{f}:{node.lineno} import {a.name}")
+                  elif isinstance(node, ast.ImportFrom):
+                      mod = (node.module or "").split(".")[0]
+                      if mod and mod not in ALLOWED:
+                          bad.append(f"{f}:{node.lineno} from {node.module}")
+
+          if bad:
+              print("发现疑似第三方依赖：")
+              for b in bad:
+                  print("  " + b)
+              sys.exit(1)
+          print("OK：仅使用标准库")
+          PY
+
+  spec-freshness:
+    name: 规格库时效
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 平台会改版，规格库超过 180 天就该复核。
+      # 这里只提示不失败——除非真的过期太久。
+      - name: 检查规格库是否过期
+        run: python scripts/spec.py --validate

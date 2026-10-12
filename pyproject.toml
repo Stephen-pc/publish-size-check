@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "publish-size-check"
+version = "2.1.0"
+description = "发布尺寸检查：对照目标平台规格，检查图片能不能发、哪一项参数过不了。零依赖，只查几何参数。"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = [
+    "image", "aspect-ratio", "dpi", "social-media", "xiaohongshu",
+    "wechat", "douyin", "bilibili", "publishing", "cli", "no-dependencies",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Utilities",
+]
+# 核心约束：零依赖。这里永远不会出现 dependencies。
+dependencies = []
+
+[project.optional-dependencies]
+# 仅供开发与 CI 使用，运行本体不需要
+dev = []
+
+[project.scripts]
+publish-size-check = "spec:main"
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USERNAME/publish-size-check"
+Issues = "https://github.com/YOUR_USERNAME/publish-size-check/issues"
+
+[tool.setuptools]
+py-modules = ["spec"]
+package-dir = { "" = "scripts" }
+
+[tool.setuptools.package-data]
+"*" = ["*.json"]

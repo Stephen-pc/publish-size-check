@@ -1,0 +1,730 @@
+{
+  "schema_version": "1.1.0",
+  "verified_at": "2026-10-12",
+  "stale_after_days": 180,
+  "note": "平台规格库。平台改版频繁，超过 stale_after_days 的规格必须标记为『待核实』而不是照用。confidence：verified=多方独立来源交叉印证；community=社区共识未获官方确认；experience=经验值需复核。canvas 支持三种写法：{w,h} 精确值；{w,h,tolerance:'gte'} 表示『不小于』；{w,h,alt:[...]} 表示存在多个被广泛使用的取值。",
+  "evidence_policy": "规格数值必须可追溯。每条 slot 的 source 字段记录核实依据，无来源的数值不得标为 verified。",
+  "universal_fallback": {
+    "label": "通用安全规格（规格库未命中时使用）",
+    "canvas": {
+      "w": 1080,
+      "h": 1080
+    },
+    "aspect": "1:1",
+    "max_bytes": 5242880,
+    "accepted_formats": [
+      "jpg",
+      "png"
+    ],
+    "min_dpi_for_print": null,
+    "notes": "正方形 1080×1080、5MB 以内、JPG/PNG，在绝大多数中文内容平台都能安全发布。这是兜底值，不是最优值。"
+  },
+  "platforms": [
+    {
+      "id": "wechat-mp",
+      "name": "微信公众号",
+      "aliases": [
+        "公众号",
+        "微信",
+        "微信图文",
+        "mp",
+        "订阅号",
+        "服务号"
+      ],
+      "kind": "social_cn",
+      "confidence": "verified",
+      "slots": [
+        {
+          "slot": "cover_main",
+          "label": "头条封面",
+          "canvas": {
+            "w": 900,
+            "h": 383
+          },
+          "aspect": "2.35:1",
+          "safe_area_pct": {
+            "top": 8,
+            "bottom": 8,
+            "left": 4,
+            "right": 4
+          },
+          "max_bytes": 10485760,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif"
+          ],
+          "min_dpi": null,
+          "notes": "分享到会话窗口时右侧约三分之二被标题文字覆盖，核心信息必须落在左侧安全区。",
+          "source": "多来源一致印证（2026 年多份公众号尺寸指南与百度文库均记 900×383 / 2.35:1）"
+        },
+        {
+          "slot": "cover_sub",
+          "label": "次条封面",
+          "canvas": {
+            "w": 200,
+            "h": 200
+          },
+          "aspect": "1:1",
+          "safe_area_pct": {
+            "top": 10,
+            "bottom": 10,
+            "left": 10,
+            "right": 10
+          },
+          "max_bytes": 2097152,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "缩略尺寸极小，禁止放正文级别的文字，放纯标识或色块即可。",
+          "source": "多来源一致印证（多处记 200×200 / 1:1）"
+        },
+        {
+          "slot": "inline_body",
+          "label": "正文配图",
+          "canvas": {
+            "w": 900,
+            "h": null,
+            "h_rule": "free"
+          },
+          "aspect": "free",
+          "max_bytes": 10485760,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif"
+          ],
+          "min_dpi": null,
+          "notes": "官方口径按 900 宽出图，高度随内容，不必凑固定高度。原文曾误记为 1080（那是通行上限，非官方推荐值），按 900 出图才不会被列表页二次压缩。",
+          "source": "官方口径（公众号尺寸速查表标注为官方，正文配图宽 900、高不限）"
+        }
+      ],
+      "reject_reasons": [
+        "封面核心信息被标题文字遮挡（未留安全区）",
+        "正文图宽度不足 1080 导致放大模糊",
+        "上传体积超限被压缩，细密文字糊成一片"
+      ],
+      "multi_image": {
+        "applies_to": [
+          "inline_body"
+        ],
+        "require_uniform": false,
+        "max_count": null,
+        "notes": "正文多图宽度建议统一为 900，高度可不同。"
+      }
+    },
+    {
+      "id": "xiaohongshu",
+      "name": "小红书",
+      "aliases": [
+        "小红书",
+        "xhs",
+        "红书",
+        "薯"
+      ],
+      "kind": "social_cn",
+      "confidence": "verified",
+      "slots": [
+        {
+          "slot": "note_cover",
+          "label": "笔记封面（竖版）",
+          "canvas": {
+            "w": 1242,
+            "h": 1660,
+            "alt": [
+              {
+                "w": 1242,
+                "h": 1656
+              },
+              {
+                "w": 1080,
+                "h": 1440
+              }
+            ]
+          },
+          "aspect": "3:4",
+          "safe_area_pct": {
+            "top": 6,
+            "bottom": 12,
+            "left": 6,
+            "right": 6
+          },
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "3:4 竖版占屏最大，信息流里最抓眼。像素值社区有分歧：1242×1660、1242×1656、1080×1440 三种都被广泛使用且都在 3:4 附近，差异在平台二次压缩后肉眼不可辨——真要求是『3:4 比例』而不是某个精确像素。底部约 12~15% 会被标题与作者信息压住，文字要往上挪。【超出本技能范围】平台会对封面做 OCR 识别来匹配内容标签，文字措辞会影响分发，但这属于内容层，本技能不做判断。",
+          "source": "比例获多来源一致印证；像素取值存在 ≥3 种社区写法，已全部收录"
+        },
+        {
+          "slot": "note_cover_square",
+          "label": "笔记封面（方版）",
+          "canvas": {
+            "w": 1080,
+            "h": 1080
+          },
+          "aspect": "1:1",
+          "safe_area_pct": {
+            "top": 6,
+            "bottom": 12,
+            "left": 6,
+            "right": 6
+          },
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "方版在信息流占屏小于竖版，同内容优先用 3:4。",
+          "source": "多来源一致"
+        },
+        {
+          "slot": "note_body",
+          "label": "笔记内页",
+          "canvas": {
+            "w": 1242,
+            "h": null,
+            "h_rule": "free"
+          },
+          "aspect": "free",
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "多图连发时全套尺寸必须一致，混排会让页面跳动，明显降低完读率。",
+          "source": "社区共识（多来源建议全套尺寸统一，宽度对齐封面）"
+        }
+      ],
+      "reject_reasons": [
+        "首图文字太小，在信息流缩略下不可读",
+        "多图尺寸不一致导致发布后排版错乱",
+        "底部未留安全区，文字被互动按钮压住"
+      ],
+      "multi_image": {
+        "applies_to": [
+          "note_cover",
+          "note_cover_square",
+          "note_body"
+        ],
+        "require_uniform": true,
+        "max_count": 18,
+        "notes": "多图连发时全套尺寸必须一致，混排会让页面跳动，明显降低完读率。"
+      }
+    },
+    {
+      "id": "zhihu",
+      "name": "知乎",
+      "aliases": [
+        "知乎",
+        "zhihu",
+        "回答配图"
+      ],
+      "kind": "social_cn",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "answer_inline",
+          "label": "回答/想法配图",
+          "canvas": {
+            "w": 1080,
+            "h": 1080
+          },
+          "aspect": "1:1",
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif"
+          ],
+          "min_dpi": null,
+          "notes": "回答与想法里的配图按正文宽度等比缩放，1:1 方图最稳妥。支持点击放大查看原图，因此可以放信息密度较高的图表。原文曾把宽度写作 1440，无来源依据，已删除。",
+          "source": "通行口径（速查表记想法配图 1080×1080、回答配图上限 20MB）"
+        },
+        {
+          "slot": "article_cover",
+          "label": "文章封面",
+          "canvas": {
+            "w": 1200,
+            "h": 675
+          },
+          "aspect": "16:9",
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "发布『知乎文章』时的横版封面。另有来源记为 690×280（约 2.65:1），差异较大，以 1200×675 为准更安全。",
+          "source": "通行口径（速查表记 1200×675；另有来源记 690×280，存在分歧）"
+        }
+      ],
+      "reject_reasons": [
+        "图表文字过密，未点开时不可读"
+      ]
+    },
+    {
+      "id": "bilibili",
+      "name": "哔哩哔哩",
+      "aliases": [
+        "b站",
+        "B站",
+        "哔哩哔哩",
+        "bilibili"
+      ],
+      "kind": "social_cn",
+      "confidence": "verified",
+      "slots": [
+        {
+          "slot": "video_cover",
+          "label": "视频封面",
+          "canvas": {
+            "w": 1146,
+            "h": 717,
+            "tolerance": "gte",
+            "alt": [
+              {
+                "w": 1920,
+                "h": 1080
+              }
+            ]
+          },
+          "aspect": "16:10",
+          "safe_area_pct": {
+            "top": 8,
+            "bottom": 14,
+            "left": 4,
+            "right": 4
+          },
+          "max_bytes": 2097152,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "color_space": [
+            "RGB"
+          ],
+          "notes": "官方建议『不小于』1146×717，16:10；更大尺寸会被接受但会被二次压缩，不建议超过 1920×1200。右下角播放时长角标会压住下缘，底部安全区必须留足。实测体积上限 2MB——超出会被要求重新上传，这是最容易被忽略的一条。",
+          "source": "多来源交叉印证（知乎平台封面尺寸对比、多个在线改图工具预设、百度知道均记为 ≧1146×717 / 16:10 / 2MB / 72DPI / RGB）"
+        }
+      ],
+      "reject_reasons": [
+        "体积超过 2MB 被要求重新上传",
+        "时长角标压住封面文字",
+        "封面标题在缩略尺寸下不可读"
+      ]
+    },
+    {
+      "id": "weibo",
+      "name": "微博",
+      "aliases": [
+        "微博",
+        "weibo"
+      ],
+      "kind": "social_cn",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "post_image",
+          "label": "博文配图",
+          "canvas": {
+            "w": 1080,
+            "h": 1350
+          },
+          "aspect": "4:5",
+          "safe_area_pct": {
+            "top": 8,
+            "bottom": 8,
+            "left": 6,
+            "right": 6
+          },
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif"
+          ],
+          "min_dpi": null,
+          "notes": "信息流里会被再裁成 1:1；多图在时间线按方图缩略，点开才是原图。因此核心信息必须落在中央方形区域内，别贴着 4:5 的边缘放。单图上限 20MB。",
+          "source": "通行口径（多份 2026 速查表一致记 1080×1350 / 4:5、单图 20MB）"
+        },
+        {
+          "slot": "article_cover",
+          "label": "头条文章头图",
+          "canvas": {
+            "w": 1200,
+            "h": 675
+          },
+          "aspect": "16:9",
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "发布『头条文章』（非普通微博）时用的横版头图。",
+          "source": "通行口径（多份 2026 速查表一致记 1200×675 / 16:9）"
+        }
+      ],
+      "reject_reasons": [
+        "多图尺寸不一导致九宫格留白"
+      ],
+      "multi_image": {
+        "applies_to": [
+          "post_image"
+        ],
+        "require_uniform": true,
+        "max_count": 9,
+        "notes": "九宫格连发时统一按 1:1 或 3:4 裁切，混排会出现留白块。"
+      }
+    },
+    {
+      "id": "douyin",
+      "name": "抖音",
+      "aliases": [
+        "抖音",
+        "douyin",
+        "tiktok"
+      ],
+      "kind": "social_cn",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "video_cover_916",
+          "label": "视频封面（9:16 全屏）",
+          "canvas": {
+            "w": 1080,
+            "h": 1920
+          },
+          "aspect": "9:16",
+          "safe_area_pct": {
+            "top": 10,
+            "bottom": 22,
+            "left": 6,
+            "right": 14
+          },
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "直接取视频首帧或整帧作封面时用这个，与视频画面完全一致、不会被裁。左右两侧仍有互动按钮覆盖，核心信息须集中在中央偏左上。",
+          "source": "多来源一致（多个 2026 年平台规格汇总均以 9:16 / 1080×1920 为竖屏主规格）"
+        },
+        {
+          "slot": "video_cover_34",
+          "label": "图文/独立封面（3:4）",
+          "canvas": {
+            "w": 1080,
+            "h": 1440
+          },
+          "aspect": "3:4",
+          "safe_area_pct": {
+            "top": 10,
+            "bottom": 22,
+            "left": 6,
+            "right": 14
+          },
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "图文笔记用 1080×1440。注意与 9:16 的区别：『视频封面』按 9:16 出，只有图文内容或单独上传的定制封面用 3:4。选错入口会被裁。",
+          "source": "社区共识（多个 2026 年教程写 3:4 / 1080×1440，同时另有来源写 9:16 / 1080×1920，未获官方统一口径）"
+        }
+      ],
+      "reject_reasons": [
+        "封面入口选错（用 3:4 投了全屏位）导致被裁",
+        "封面文字被右侧按钮栏覆盖",
+        "下缘文案压住标题"
+      ],
+      "ambiguity_note": "视频画面与视频封面均为 1080×1920（9:16）；图文内容为 1080×1440（3:4）。封面在推荐页与个人主页列表里会被再裁成偏方比例，文字须放在中间偏上。"
+    },
+    {
+      "id": "wechat-channels",
+      "name": "微信视频号",
+      "aliases": [
+        "视频号",
+        "微信视频号",
+        "channels",
+        "视频号封面"
+      ],
+      "kind": "social_cn",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "video_cover",
+          "label": "视频封面",
+          "canvas": {
+            "w": 1080,
+            "h": 1260
+          },
+          "aspect": "6:7",
+          "safe_area_pct": {
+            "top": 8,
+            "bottom": 18,
+            "left": 6,
+            "right": 6
+          },
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "封面比例 6:7，与抖音的 9:16 不同，别直接复用。在个人主页列表里会被裁成方图，重点内容别放底部。",
+          "source": "通行口径（2026 速查表记封面 1080×1260 / 6:7；视频画面为 1080×1920）"
+        },
+        {
+          "slot": "video_frame",
+          "label": "视频画面",
+          "canvas": {
+            "w": 1080,
+            "h": 1920
+          },
+          "aspect": "9:16",
+          "max_bytes": 20971520,
+          "accepted_formats": [
+            "jpg",
+            "jpeg",
+            "png"
+          ],
+          "min_dpi": null,
+          "notes": "视频本身的竖屏规格，与抖音/快手一致。",
+          "source": "官方口径（速查表标注视频画面 1080×1920 / 9:16 为官方）"
+        }
+      ],
+      "reject_reasons": [
+        "直接复用抖音 9:16 封面导致被裁",
+        "封面重点内容放在底部，在个人主页列表里被裁掉"
+      ]
+    },
+    {
+      "id": "academic-submit",
+      "name": "学术投稿",
+      "aliases": [
+        "投稿",
+        "论文",
+        "期刊",
+        "学术",
+        "论文插图",
+        "SCI"
+      ],
+      "kind": "print_adjacent",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "figure_photo",
+          "label": "照片/显微/电泳图（连续色调）",
+          "canvas": {
+            "w": null,
+            "h": null,
+            "rule": "physical_width"
+          },
+          "aspect": "free",
+          "max_bytes": 52428800,
+          "accepted_formats": [
+            "tif",
+            "tiff",
+            "eps",
+            "pdf"
+          ],
+          "min_dpi": 300,
+          "physical_width_mm": {
+            "min": 88,
+            "common": [
+              88,
+              120,
+              136,
+              180
+            ]
+          },
+          "color_space": [
+            "RGB"
+          ],
+          "notes": "关键：判定依据是『最终印刷尺寸下的 dpi』，不是文件里的 dpi 元数据。800×600 像素即使标着 300dpi，印出来只有 68mm 宽，不够单栏 88mm——这类问题必须靠『像素数 ÷ dpi = 物理宽度』来算，加大 dpi 数字没用。常见栏宽：单栏 88mm、1.5 栏 120/136mm、双栏 180mm。",
+          "source": "官方口径（Nature 终稿指南 88/180mm、Science 5.7/12.1/18.4cm、Cell 85/174mm；出版社作者页核对）",
+          "choose_hint": "这是哪一类图由你判断：照片/显微/电泳（连续色调）用 300dpi 档；纯线条或示意图用 600dpi 档。脚本无法从文件本身区分。"
+        },
+        {
+          "slot": "figure_line",
+          "label": "线条图/示意图/曲线图",
+          "canvas": {
+            "w": null,
+            "h": null,
+            "rule": "physical_width"
+          },
+          "aspect": "free",
+          "max_bytes": 52428800,
+          "accepted_formats": [
+            "eps",
+            "pdf",
+            "ai",
+            "svg",
+            "tif"
+          ],
+          "min_dpi": 600,
+          "vector_required_for": [
+            "line_art",
+            "chart",
+            "schematic"
+          ],
+          "physical_width_mm": {
+            "min": 88,
+            "common": [
+              88,
+              120,
+              136,
+              180
+            ]
+          },
+          "color_space": [
+            "RGB"
+          ],
+          "notes": "线条图应尽量用矢量（EPS/PDF/AI）——Nature 明确写『不要栅格化线条图』，Science 偏好矢量。若必须位图，600dpi 起步（Cell 对线条图要求 1000dpi），因为细线和小字在 300dpi 下会锯齿化。",
+          "source": "官方口径（Nature 不栅格化线条图；Science 偏好矢量；Cell 线条图 1000 dpi）",
+          "choose_hint": "这是哪一类图由你判断：照片/显微/电泳（连续色调）用 300dpi 档；纯线条或示意图用 600dpi 档。脚本无法从文件本身区分。"
+        }
+      ],
+      "reject_reasons": [
+        "插图是位图且有明显锯齿/模糊（未达 300dpi）",
+        "应为矢量的线图用了截图",
+        "字体未嵌入 PDF，编辑部打开后字体错乱"
+      ]
+    },
+    {
+      "id": "print",
+      "name": "印刷交付",
+      "aliases": [
+        "印刷",
+        "打印",
+        "印厂",
+        "出片",
+        "喷绘"
+      ],
+      "kind": "print",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "offset",
+          "label": "胶印/数码印刷",
+          "canvas": {
+            "w": null,
+            "h": null,
+            "rule": "with_bleed"
+          },
+          "aspect": "free",
+          "max_bytes": null,
+          "accepted_formats": [
+            "pdf",
+            "tif",
+            "eps"
+          ],
+          "min_dpi": 300,
+          "bleed_mm": 3,
+          "color_space": [
+            "CMYK"
+          ],
+          "notes": "必须留 3mm 出血。彩色图文用 CMYK；纯黑文字用 K100 单色黑，四色黑套印不准会发虚。300dpi 是底线，且须按成品尺寸计算，不是文件里标的 dpi。",
+          "source": "行业通行规范（3mm 出血、CMYK、K100 单色黑、成品尺寸 300dpi）"
+        },
+        {
+          "slot": "large_format",
+          "label": "大幅喷绘",
+          "canvas": {
+            "w": null,
+            "h": null,
+            "rule": "scale_ratio"
+          },
+          "aspect": "free",
+          "max_bytes": null,
+          "accepted_formats": [
+            "pdf",
+            "tif",
+            "jpg"
+          ],
+          "min_dpi": 72,
+          "dpi_note": "按实际输出尺寸计：近距离观看 150dpi，远距离 72dpi 足够。",
+          "color_space": [
+            "CMYK"
+          ],
+          "notes": "大幅输出按成品尺寸算 dpi，不看文件本身像素多少。",
+          "source": "行业通行规范（按实际输出尺寸计算 dpi，近距离 150 / 远距离 72）"
+        }
+      ],
+      "reject_reasons": [
+        "未留出血被裁掉边缘内容",
+        "RGB 未转 CMYK 导致印后色差明显",
+        "纯黑文字用了四色黑，套印不准发虚"
+      ]
+    },
+    {
+      "id": "client-delivery",
+      "name": "甲方交付",
+      "aliases": [
+        "甲方",
+        "客户",
+        "交付",
+        "给客户",
+        "提案",
+        "品牌方"
+      ],
+      "kind": "business",
+      "confidence": "community",
+      "slots": [
+        {
+          "slot": "editable_asset",
+          "label": "可编辑源文件",
+          "canvas": {
+            "w": null,
+            "h": null,
+            "rule": "match_original"
+          },
+          "aspect": "free",
+          "max_bytes": null,
+          "accepted_formats": [
+            "psd",
+            "ai",
+            "svg",
+            "pptx",
+            "xlsx",
+            "docx",
+            "fig"
+          ],
+          "min_dpi": 300,
+          "notes": "甲方最常见的退回理由是『文字不能改』和『图片是截图』。交付时同时给：可编辑源文件 + 预览图 + 字体清单。",
+          "source": "经验值（来自甲方交付场景的常见退回理由归纳，非平台官方规定）"
+        }
+      ],
+      "reject_reasons": [
+        "文字层被栅格化无法编辑",
+        "缺字体清单，甲方打开后字体回退错乱",
+        "只给了扁平图片，无可编辑源文件"
+      ]
+    }
+  ]
+}
