@@ -123,3 +123,110 @@ jobs:
       # 这里只提示不失败——除非真的过期太久。
       - name: 检查规格库是否过期
         run: python scripts/spec.py --validate
+
+  plugin:
+    name: 插件包一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # 仓库是双入口：根目录是技能形态，plugins/publish-check/ 是插件形态。
+      # 两处技能文件必须逐字节相同，否则装了插件的人拿到的和仓库里看到的不是一回事。
+      # 这条 CI 把「记得同步」从人的纪律变成机器的检查。
+      - name: 技能文件在两种形态下逐字节一致
+        run: |
+          set -e
+          SRC_TO_DST="
+          SKILL.md:plugins/publish-check/skills/publish-check/SKILL.md
+          demo.py:plugins/publish-check/skills/publish-check/demo.py
+          scripts/spec.py:plugins/publish-check/skills/publish-check/scripts/spec.py
+          scripts/test_spec.py:plugins/publish-check/skills/publish-check/scripts/test_spec.py
+          references/platforms.json:plugins/publish-check/skills/publish-check/references/platforms.json
+          "
+          fail=0
+          for pair in $SRC_TO_DST; do
+            src="${pair%%:*}"
+            dst="${pair#*:}"
+            if [ ! -f "$dst" ]; then
+              echo "缺失: $dst"
+              fail=1
+              continue
+            fi
+            if cmp -s "$src" "$dst"; then
+              echo "OK   $src == $dst"
+            else
+              echo "不一致: $src != $dst"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # 插件清单的字段错了，用户在 /plugin install 那一步才会发现。
+      # 这条在提交时就拦住：JSON 可解析、name 合法、source 指向真实目录、
+      # skills 声明能落到含 SKILL.md 的目录。
+      - name: 插件清单校验
+        run: |
+          python - <<'PY'
+          import json, re, sys
+          from pathlib import Path
+
+          NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
+          errors = []
+
+          mp = Path(".codebuddy-plugin/marketplace.json")
+          if not mp.is_file():
+              sys.exit("缺少 .codebuddy-plugin/marketplace.json")
+          market = json.loads(mp.read_text(encoding="utf-8"))
+
+          if not NAME_RE.match(market.get("name", "")):
+              errors.append(f"marketplace.name 不合法: {market.get('name')!r}")
+          if "owner" not in market:
+              errors.append("marketplace.owner 缺失")
+          if not market.get("plugins"):
+              errors.append("marketplace.plugins 为空")
+
+          for entry in market.get("plugins", []):
+              pname = entry.get("name", "")
+              if not NAME_RE.match(pname):
+                  errors.append(f"插件名不合法: {pname!r}")
+              for field in ("source", "description"):
+                  if not entry.get(field):
+                      errors.append(f"插件 {pname} 缺 {field}")
+
+              src = Path(entry.get("source", "").lstrip("./"))
+              pj = src / ".codebuddy-plugin" / "plugin.json"
+              if not pj.is_file():
+                  errors.append(f"插件 {pname} 缺 {pj}")
+                  continue
+              plugin = json.loads(pj.read_text(encoding="utf-8"))
+              if plugin.get("name") != pname:
+                  errors.append(
+                      f"{pj} 的 name={plugin.get('name')!r} 与市场条目 {pname!r} 不一致"
+                  )
+              if not plugin.get("version"):
+                  errors.append(f"{pj} 缺 version")
+
+              for rel in plugin.get("skills", []):
+                  d = src / rel.lstrip("./")
+                  if not (d / "SKILL.md").is_file():
+                      errors.append(f"插件 {pname} 的 skills 路径无 SKILL.md: {rel}")
+
+          if errors:
+              print("插件清单有问题：")
+              for e in errors:
+                  print("  " + e)
+              sys.exit(1)
+          print("OK：市场与插件清单均合法")
+          PY
+
+      # 在插件目录内跑一遍，确认打包后仍然跑得起来（相对路径没写死）。
+      - name: 插件形态下冒烟测试
+        run: |
+          cd plugins/publish-check/skills/publish-check
+          python scripts/spec.py --validate
+          python scripts/test_spec.py
+          python demo.py > /dev/null
+          python scripts/spec.py --list

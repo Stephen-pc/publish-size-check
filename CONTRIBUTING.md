@@ -89,20 +89,41 @@
 
 ---
 
-## 改完必须跑这两条
+## 改完必须跑这三条
 
 ```bash
 python scripts/spec.py --validate    # 有错退出码 1
-python scripts/test_spec.py          # 46 项回归测试
+python scripts/test_spec.py          # 53 项回归测试
+python demo.py                       # 五类典型结论是否仍然成立
 ```
 
 `--validate` 会检查：schema 缺失、confidence 非法、verified 却没填 source、别名冲突、aspect 与 canvas 不自洽、`tolerance`/`alt` 用法错误、安全区不完整、体积类型错。
 
 ---
 
+## 仓库是双入口，改动必须同步
+
+本仓库同时是**技能**（根目录）和**插件**（`plugins/publish-check/`）。两处的技能文件必须**逐字节相同**——否则装了插件的人拿到的和仓库里看到的不是一回事。
+
+```bash
+cp SKILL.md demo.py plugins/publish-check/skills/publish-check/
+cp scripts/*.py plugins/publish-check/skills/publish-check/scripts/
+cp references/platforms.json plugins/publish-check/skills/publish-check/references/
+```
+
+CI 里有一条 `plugin` 任务会逐字节比对（`cmp`），忘了同步会直接红。它还会校验市场 / 插件清单字段合法、以及在插件形态下冒烟测试能跑通。
+
+**为什么不干脆用符号链接省掉这一步？** 因为官方文档明确写了：指向 marketplace 外部的符号链接在安装复制时会被跳过。要跨形态复用，符号链接就得留在 marketplace 内，那样目录结构反而更绕。显式复制 + CI 校验更直白，也更容易读懂。
+
+---
+
 ## 改代码
 
 逻辑集中在 `scripts/spec.py`，回归测试在 `scripts/test_spec.py`。
+
+### 插件形态下的路径不能写死
+
+插件会被复制进版本化 cache（`~/.codebuddy/plugins/cache/<marketplace>/<plugin>/<version>`），相对位置可能变。所以脚本里定位文件要**按候选顺序探测**，参考 `demo.py` 的 `_find_skill_root()`。
 
 ### 加测试时请注意
 

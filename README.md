@@ -172,6 +172,82 @@ cp -r . ~/.workbuddy-ai/skills/publish-size-check/
 
 ---
 
+## 作为 CodeBuddy / WorkBuddy 插件安装
+
+本仓库同时是一个**插件市场（marketplace）**，可以一条命令装进 CodeBuddy / WorkBuddy：
+
+```bash
+# 1. 添加本仓库作为插件市场
+/plugin marketplace add Stephen-pc/publish-size-check
+
+# 2. 安装插件
+/plugin install publish-check@publish-size-check
+
+# 3. 立即生效，无需重启
+/reload-plugins
+```
+
+装好后技能即刻可用，触发方式和上面的 Agent Skill 完全一致。
+
+### 与「直接复制 skill」的区别
+
+| | 复制 SKILL.md | 装成插件 |
+|---|---|---|
+| 升级 | 手动重拷 | `/plugin update publish-check@publish-size-check` |
+| 团队分发 | 各自拷贝 | 写进 `.codebuddy/settings.json`，协作者自动获得 |
+| 组件命名空间 | 无 | `publish-check:publish-check` |
+| 适用场景 | 单人、临时试 | 长期使用、团队统一 |
+
+### 本地开发 / 不联网安装
+
+```bash
+/plugin marketplace add ./publish-size-check
+/plugin install publish-check@publish-size-check
+```
+
+### 仓库结构（双入口）
+
+```
+publish-size-check/
+├── .codebuddy-plugin/
+│   └── marketplace.json          # 市场清单：声明本仓库提供哪些插件
+├── plugins/
+│   └── publish-check/            # 插件包（会被复制进版本化 cache）
+│       ├── .codebuddy-plugin/
+│       │   └── plugin.json       # 插件清单
+│       ├── LICENSE
+│       └── skills/
+│           └── publish-check/    # ← 技能本体，与仓库根目录内容一致
+│               ├── SKILL.md
+│               ├── demo.py
+│               ├── scripts/
+│               └── references/
+├── SKILL.md                      # 仓库根目录 = 直接可用的技能形态
+├── scripts/
+├── references/
+└── demo.py
+```
+
+根目录保留技能形态，是为了**不装插件的人也能直接 `cp -r` 使用**；`plugins/publish-check/` 是插件形态。两处的技能文件**内容逐字节相同**（CI 会校验），改完记得同步：
+
+```bash
+cp SKILL.md demo.py plugins/publish-check/skills/publish-check/
+cp scripts/*.py plugins/publish-check/skills/publish-check/scripts/
+cp references/platforms.json plugins/publish-check/skills/publish-check/references/
+```
+
+### 为什么没有做成完整插件市场里的「原生插件」
+
+插件还能挂 `commands/`、`agents/`、`hooks/`、MCP server。本工具**故意不挂**：
+
+- 不需要 hook —— 寄生自检靠 `SKILL.md` 里的触发协议，装了插件就自动生效，不需要在用户机器上跑钩子。
+- 不需要 MCP server —— 那要求常驻进程和 stdio 协议，与「零依赖、跑完就退出」的设计冲突。
+- 不需要 command —— 技能本身就能被自然语言触发，多一个斜杠命令只是多一个要维护的入口。
+
+**能少挂一个组件就少挂一个** —— 每挂一个，用户装之前的信任成本就高一档。
+
+---
+
 ## 这个工具**不**做什么（重要）
 
 **只查几何参数。不查内容合规。**

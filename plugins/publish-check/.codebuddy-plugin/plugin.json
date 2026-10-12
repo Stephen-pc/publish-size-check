@@ -1,0 +1,25 @@
+{
+  "name": "publish-check",
+  "version": "2.2.0",
+  "description": "发布尺寸检查——对照目标平台的几何规格，检查文件能不能发、哪一项参数过不了。纯标准库实现，原件只读。",
+  "author": {
+    "name": "Stephen-pc",
+    "url": "https://github.com/Stephen-pc"
+  },
+  "homepage": "https://github.com/Stephen-pc/publish-size-check",
+  "repository": "https://github.com/Stephen-pc/publish-size-check",
+  "license": "MIT",
+  "keywords": [
+    "publish",
+    "image",
+    "dpi",
+    "aspect-ratio",
+    "xiaohongshu",
+    "wechat",
+    "print",
+    "no-dependencies"
+  ],
+  "skills": [
+    "./skills/publish-check"
+  ]
+}

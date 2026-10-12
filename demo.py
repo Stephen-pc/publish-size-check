@@ -7,6 +7,7 @@
 跑完自动清理，不留任何文件。不需要任何第三方包。
 """
 
+import os
 import shutil
 import struct
 import subprocess
@@ -16,7 +17,42 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SPEC = HERE / "scripts" / "spec.py"
+
+
+def _find_skill_root():
+    """在两种安装形态下定位技能根目录（含 scripts/spec.py 的那一层）。
+
+    - 仓库形态：demo.py 就在技能根目录，HERE 即根目录。
+    - 插件形态：插件会被复制进版本化 cache，demo.py 有时与技能根目录同级
+      （见下方探测 2），HERE 就不等于根目录了。
+    因此这里按候选顺序探测，而不是写死一个路径。
+    """
+    candidates = [
+        HERE,
+        HERE / "skills" / "publish-check",
+        HERE.parent,
+        Path(os.environ.get("CODEBUDDY_PLUGIN_ROOT", "")) / "skills" / "publish-check",
+    ]
+    for c in candidates:
+        try:
+            if (c / "scripts" / "spec.py").is_file():
+                return c
+        except OSError:
+            continue
+    return HERE
+
+
+SKILL_ROOT = _find_skill_root()
+SPEC = SKILL_ROOT / "scripts" / "spec.py"
+
+# 复用 spec.py 的 UTF-8 输出兜底。Windows 的 Python 默认按控制台代码页编码，
+# 输出中文会崩——demo 里全是中文提示，同样需要这层保护。
+sys.path.insert(0, str(SKILL_ROOT / "scripts"))
+try:
+    import spec as _spec
+    _spec._force_utf8_stdout()
+except ImportError:
+    pass
 
 # 复用 spec.py 的 UTF-8 输出兜底。Windows 的 Python 默认按控制台代码页编码，
 # 输出中文会崩——demo 里全是中文提示，同样需要这层保护。

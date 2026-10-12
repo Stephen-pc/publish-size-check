@@ -2,6 +2,26 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] - 2026-10-12
+
+### 新增
+- **可装成 CodeBuddy / WorkBuddy 插件。** 仓库同时是插件市场，一条命令即可安装：
+  ```bash
+  /plugin marketplace add Stephen-pc/publish-size-check
+  /plugin install publish-check@publish-size-check
+  ```
+  - `.codebuddy-plugin/marketplace.json` —— 市场清单
+  - `plugins/publish-check/.codebuddy-plugin/plugin.json` —— 插件清单（`skills` 指向 `./skills/publish-check`）
+  - `plugins/publish-check/skills/publish-check/` —— 插件形态的技能本体
+- 打包成插件后自动获得**版本管理与团队分发**：`/plugin update` 升级、写进 `.codebuddy/settings.json` 让协作者自动获得。
+
+### 变更
+- **`demo.py` 支持两种安装形态。** 新增 `_find_skill_root()` 探测技能根目录——插件会被复制进版本化 cache，`demo.py` 不再总是与 `scripts/` 同级。仓库形态与插件形态下均可直接运行。
+- CI 新增 `plugin` 任务：校验两处技能文件逐字节一致、市场与插件清单字段合法、插件形态下冒烟测试通过。
+
+### 说明
+- 根目录仍保留完整技能形态，`cp -r` 即可用于不支持插件的环境。两处副本内容必须一致，由 CI 强制。
+
 ## [2.1.1] - 2026-10-12
 
 ### 修复

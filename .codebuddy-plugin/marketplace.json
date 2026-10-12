@@ -1,0 +1,37 @@
+{
+  "name": "publish-size-check",
+  "description": "发布尺寸检查——发布前体检，对照目标平台几何规格判断文件能不能发。also usable as a plain Agent Skill.",
+  "owner": {
+    "name": "Stephen-pc",
+    "url": "https://github.com/Stephen-pc"
+  },
+  "metadata": {
+    "version": "2.2.0"
+  },
+  "plugins": [
+    {
+      "name": "publish-check",
+      "source": "./plugins/publish-check",
+      "description": "发布尺寸检查——对照目标平台的几何规格（像素尺寸、比例、dpi、体积、格式、物理印刷宽度、色彩模式），检查文件能不能发、哪一项参数过不了。纯标准库，原件只读。",
+      "version": "2.2.0",
+      "author": {
+        "name": "Stephen-pc",
+        "url": "https://github.com/Stephen-pc"
+      },
+      "homepage": "https://github.com/Stephen-pc/publish-size-check",
+      "repository": "https://github.com/Stephen-pc/publish-size-check",
+      "license": "MIT",
+      "category": "utility",
+      "keywords": [
+        "publish",
+        "image",
+        "dpi",
+        "aspect-ratio",
+        "xiaohongshu",
+        "wechat",
+        "print",
+        "no-dependencies"
+      ]
+    }
+  ]
+}
