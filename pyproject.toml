@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "publish-size-check"
-version = "2.2.0"
+version = "2.3.0"
 description = "发布尺寸检查：对照目标平台规格，检查图片能不能发、哪一项参数过不了。零依赖，只查几何参数。"
 readme = "README.md"
 requires-python = ">=3.8"

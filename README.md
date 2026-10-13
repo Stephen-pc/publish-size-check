@@ -248,6 +248,61 @@ cp references/platforms.json plugins/publish-check/skills/publish-check/referenc
 
 ---
 
+## 作为 DeepSeek Harness（dsh）插件安装
+
+本仓库同时是一个 **dsh 插件包**，可以直接装进 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：
+
+```bash
+dsh plugin --profile web add github:Stephen-pc/publish-size-check
+```
+
+装好后 `publish-check` 会出现在技能目录里，触发方式和上面的 Agent Skill 完全一致。
+
+也可以从 [dsh-market](https://github.com/dsh-market/dsh-market) 一键安装 —— 它内置的插件列表 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 收录了本插件。
+
+### 它长什么样
+
+```
+publish-size-check/
+├── package.json          # 声明 dsh.bundle
+├── cordis.patch.yml      # bundle patch 层：往 profile 树插一条 loader entry
+├── lib/index.js          # 技能 provider：把 SKILL.md 挂到 ctx.skills
+├── tools/dsh-selftest.mjs
+└── SKILL.md              # ← 与仓库根是同一份
+```
+
+`lib/index.js` 是一层**很薄的接线**，不是第二个实现：
+
+- **零依赖** —— 只 import `node:fs/promises` / `node:url` / `node:path`，与 `scripts/spec.py` 只用 Python 标准库是同一个原则。
+- **不复制正文** —— 候选和正文都在调用时从 `SKILL.md` 现读，改正文不必动这个文件，也不会出现「描述与正文两份、各自漂移」。
+- **不覆盖本地版本** —— 它报 `bundled` 秩（600），你在 `~/.dsh/skills/publish-check` 放的本地特化版（`user-dsh` = 400）仍然优先。
+
+判定逻辑始终只有一份，在 `scripts/spec.py`。
+
+### 一个容易踩的坑：`{skill_base}`
+
+`SKILL.md` 正文里写的是 `python {skill_base}/scripts/spec.py` —— `{skill_base}` 是 CodeBuddy / WorkBuddy 形态的占位符，宿主会在运行时替换它。
+
+**dsh 不认这个占位符。** 它走的是另一套机制：provider 报一个 `resourceBase`，宿主把基准目录写进 `<skill_resources>`，并要求模型「把技能里提到的相对路径解析到基准目录下」。
+
+所以 provider 在 `get()` 时把 `{skill_base}/` 削掉，正文里留下的是 dsh 惯例的裸相对路径（基准目录 = 包根）：
+
+```bash
+python scripts/spec.py --check cover.png
+```
+
+不这么做的话，模型会拿到一条执行不了的命令。削成相对路径、而不是替换成绝对路径，是因为 Windows 绝对路径带反斜杠，写进代码块后在 bash 里会被当成转义字符。
+
+### 自检
+
+```bash
+node tools/dsh-selftest.mjs
+```
+
+用一个假 `ctx` 走完 `apply()` → `list()` → `get()`，并验证正文引用的相对路径真的落在包根下。CI 还会 `npm pack` 解压后**按安装形态再跑一遍** —— 抓的是 `files` 字段漏文件这类只有用户才会撞上的错。
+
+---
+
 ## 这个工具**不**做什么（重要）
 
 **只查几何参数。不查内容合规。**

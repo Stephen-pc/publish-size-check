@@ -2,6 +2,26 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.3.0] - 2026-10-13
+
+### 新增
+- **可装进 DeepSeek Harness（dsh）。** 仓库现在同时是一个 dsh 插件包——`package.json` 声明 `dsh.bundle`，包根带 `cordis.patch.yml`：
+  ```bash
+  dsh plugin --profile web add github:Stephen-pc/publish-size-check
+  ```
+  - `lib/index.js` —— 一层很薄的技能 provider，把仓库自带的 `SKILL.md` 挂到 `ctx.skills`。零依赖，只 import `node:` 内置模块，不重复实现任何规格判定。
+  - `cordis.patch.yml` —— bundle patch 层（`id: publish-check` / `name: publish-size-check`，后者必须与 `package.json` 的 `name` 完全一致）。
+  - `tools/dsh-selftest.mjs` —— 用一个假 ctx 走完 `apply()` → `list()` → `get()`，并验证正文引用的相对路径真的落在包根下。仓库形态 39 项、安装形态 45 项。
+- 已提交收录到 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 精选列表——它是 dsh 内置插件市场 dsh-market 的唯一数据源，市场只允许安装该列表内的来源。
+
+### 说明
+- **dsh 不认 `{skill_base}` 占位符。** 它走的是另一套机制：provider 报 `resourceBase`，宿主把基准目录写进 `<skill_resources>`，并要求模型「把技能里提到的相对路径解析到基准目录下」。所以 provider 在 `get()` 时把 `{skill_base}/` 削掉，正文里留下的是 dsh 惯例的裸相对路径（`scripts/spec.py`）。不这么做，模型会拿到一条执行不了的命令。
+- 削成裸相对路径、而不是替换成绝对路径：Windows 绝对路径带反斜杠，写进 `bash` 代码块后在 bash 里会被当成转义字符。
+- 三种分发形态现在并存且互不干扰：仓库根（直接复制）、`plugins/publish-check/`（CodeBuddy / WorkBuddy 插件）、`package.json` + `lib/`（dsh 插件）。判定逻辑始终只有一份，在 `scripts/spec.py`。
+
+### 变更
+- CI 新增 `dsh` 任务：先在仓库形态下自检，再 `npm pack` 解压后按**安装形态**自检一遍——抓的是 `files` 字段漏文件这类只有用户才会撞上的错。
+
 ## [2.2.0] - 2026-10-12
 
 ### 新增

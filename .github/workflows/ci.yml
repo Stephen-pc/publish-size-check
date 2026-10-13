@@ -230,3 +230,38 @@ jobs:
           python scripts/test_spec.py
           python demo.py > /dev/null
           python scripts/spec.py --list
+
+  dsh:
+    name: DSH 插件包
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 声明了 dsh.bundle 只能证明「这个包声称自己是 DSH 插件」，证明不了「它真的能被加载」。
+      # 这里用一个假 ctx 走完 apply() → list() → get()，并验证 SKILL.md 正文里引用的
+      # 相对路径真的落在包根下 —— 插件清单写错时，用户在 dsh plugin add 那一步才会发现。
+      - name: 仓库形态自检
+        run: node tools/dsh-selftest.mjs
+
+      # 上面那步测的是仓库，不是用户拿到的东西。npm 的 files 字段漏一个目录，
+      # 仓库里一切正常、装完却跑不起来 —— 这种错只有用户会撞上，所以这里真打一次包。
+      - name: 打包后按安装形态自检
+        run: |
+          set -e
+          mkdir -p /tmp/pkg /tmp/sim/node_modules
+          npm pack --pack-destination /tmp/pkg
+          tar xzf /tmp/pkg/*.tgz -C /tmp/sim/node_modules
+          mv /tmp/sim/node_modules/package /tmp/sim/node_modules/publish-size-check
+          node tools/dsh-selftest.mjs /tmp/sim/node_modules/publish-size-check
+
+      # 技能本体是 Python，但 dsh 的加载路径是 Node。装完之后脚本还得真的跑得起来，
+      # 且 resourceBase 指向的基准目录下确实有 scripts/ —— 两件事分开验证。
+      - name: 安装形态下脚本仍可执行
+        run: |
+          set -e
+          cd /tmp/sim/node_modules/publish-size-check
+          python3 scripts/spec.py --validate
+          python3 scripts/spec.py --list > /dev/null
