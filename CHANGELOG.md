@@ -12,6 +12,7 @@
   - `lib/index.js` —— 一层很薄的技能 provider，把仓库自带的 `SKILL.md` 挂到 `ctx.skills`。零依赖，只 import `node:` 内置模块，不重复实现任何规格判定。
   - `cordis.patch.yml` —— bundle patch 层（`id: publish-check` / `name: publish-size-check`，后者必须与 `package.json` 的 `name` 完全一致）。
   - `tools/dsh-selftest.mjs` —— 用一个假 ctx 走完 `apply()` → `list()` → `get()`，并验证正文引用的相对路径真的落在包根下。仓库形态 39 项、安装形态 45 项。
+  - `tools/dsh-real-load.mjs` —— **可选**的深度验证：拉起官方 `@deepseek-ai/cordis` + `@deepseek-ai/dsh-skill`，走 `ctx.skills.get()` → `renderSkillContent()`，看模型最终收到的文本长什么样。**不进 CI** —— 官方包改 API 是上游的正常演进，不该让本仓库的 CI 变红。
 - 已提交收录到 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 精选列表——它是 dsh 内置插件市场 dsh-market 的唯一数据源，市场只允许安装该列表内的来源。
 
 ### 说明

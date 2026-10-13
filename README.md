@@ -301,6 +301,17 @@ node tools/dsh-selftest.mjs
 
 用一个假 `ctx` 走完 `apply()` → `list()` → `get()`，并验证正文引用的相对路径真的落在包根下。CI 还会 `npm pack` 解压后**按安装形态再跑一遍** —— 抓的是 `files` 字段漏文件这类只有用户才会撞上的错。
 
+想更彻底一点，可以拉起官方运行时真的加载一次（需要联网装依赖，不进 CI）：
+
+```bash
+cd /tmp && npm init -y
+npm install @deepseek-ai/cordis@~4.0.4 @deepseek-ai/dsh-skill@0.2.0-rc.2 \
+            @deepseek-ai/dsh-llm@0.2.0-rc.2 @deepseek-ai/dsh-scope@0.2.0-rc.2
+node <本仓库>/tools/dsh-real-load.mjs <本仓库>
+```
+
+它会走 `ctx.skills.get()` → `renderSkillContent()`，把**模型最终收到的那段文本**打出来——包括上面那条基准目录说明。
+
 ---
 
 ## 这个工具**不**做什么（重要）
