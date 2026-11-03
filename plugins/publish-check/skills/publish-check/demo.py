@@ -54,15 +54,6 @@ try:
 except ImportError:
     pass
 
-# 复用 spec.py 的 UTF-8 输出兜底。Windows 的 Python 默认按控制台代码页编码，
-# 输出中文会崩——demo 里全是中文提示，同样需要这层保护。
-sys.path.insert(0, str(HERE / "scripts"))
-try:
-    import spec as _spec
-    _spec._force_utf8_stdout()
-except ImportError:
-    pass
-
 
 def make_png(path, w, h, dpi=None):
     """生成一张内容无关、但头部信息真实的 PNG。"""
@@ -88,6 +79,10 @@ def run(label, files, target=None):
     cmd = [sys.executable, str(SPEC), "--check", *[str(f) for f in files]]
     if target:
         cmd += ["--target", target]
+    # 必须先冲刷自己的 stdout 再启动子进程。父进程的 stdout 在管道/重定向下
+    # 是块缓冲的，而子进程直接写同一个 fd——不冲刷就会出现「五段结论先出、
+    # 五个标题后出」的错位，`python demo.py | less` 一眼就能看到。
+    sys.stdout.flush()
     subprocess.run(cmd)
 
 

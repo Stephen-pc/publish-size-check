@@ -66,11 +66,15 @@ python scripts/spec.py --check cover.png
 # 多图连发（≥2 个文件会自动追加「整组是否整齐」检查）
 python scripts/spec.py --check 1.png 2.png 3.png --target 小红书
 
-# 程序化消费
+# 程序化消费：stdout 只有 JSON，报告正文走 stderr
 python scripts/spec.py --check cover.png --target 小红书 --json
 
-# 列出规格库收录的平台
+# 当发布闸门用：有不合格项就以退出码 1 结束
+python scripts/spec.py --check cover.png --target 小红书 --strict
+
+# 列出规格库收录的平台 / 查版本
 python scripts/spec.py --list
+python scripts/spec.py --version
 ```
 
 需要 Python 3.8+，**不需要安装任何第三方包**。
@@ -83,6 +87,25 @@ publish-size-check --check cover.png --target 小红书
 ```
 
 装完后规格库会随包一起装好，路径自动定位；也可以用环境变量 `PUBLISH_SIZE_CHECK_SPEC` 指定自己的规格库。
+
+---
+
+## 支持的图片格式
+
+文件头解析是手写的，不依赖 Pillow：
+
+| 格式 | 尺寸 | dpi | 说明 |
+|---|---|---|---|
+| PNG | ✓ | ✓ | 顺带读出位深与透明通道 |
+| JPEG | ✓ | ✓ | 读 JFIF 段的密度字段 |
+| GIF | ✓ | — | |
+| WebP | ✓ | — | VP8 / VP8L / VP8X 三种变体都认，含 alpha 标志 |
+| TIFF | — | — | 只按扩展名识别，尺寸解析未实现（会明确提示，不猜） |
+| PDF / SVG / EPS / AI / CDR | — | — | 按矢量处理，dpi 判定自动跳过 |
+
+WebP 是必须认的格式：AI 出图现在大量存成它。少认一种格式的后果不是「少查一项」——
+w/h 拿不到之后，尺寸、比例、多图一致性三组判定会**集体静默跳过**，用户拿到的是
+「格式不支持」而不是「你的图差 56px」，后者才是他真正要的答案。
 
 ---
 
@@ -350,7 +373,7 @@ python scripts/spec.py --validate
 
 ```bash
 python scripts/spec.py --validate   # 抓 schema / 别名冲突 / 数值不自洽，有错退出码 1
-python scripts/test_spec.py         # 46 项回归测试
+python scripts/test_spec.py         # 75 项回归测试
 ```
 
 `--validate` 会检查：schema 缺失、confidence 非法、**verified 却没填 source**、别名冲突、aspect 与 canvas 不自洽、`tolerance`/`alt` 用法错误、安全区不完整、体积类型错。**退出码 1，可以直接接 CI。**
@@ -374,12 +397,17 @@ python scripts/test_spec.py         # 46 项回归测试
       "canvas": { "w": 1080, "h": 1440 },
       "aspect": "3:4",
       "max_bytes": 20971520,
-      "formats": ["jpg", "png"],
-      "safe_area_pct": { "top": 6, "bottom": 12, "left": 6, "right": 6 }
+      "accepted_formats": ["jpg", "jpeg", "png"],
+      "safe_area_pct": { "top": 6, "bottom": 12, "left": 6, "right": 6 },
+      "source": "平台后台帮助页，2026-10 核对",
+      "notes": "封面文字别压右下角，那里会盖住作者信息"
     }
   ]
 }
 ```
+
+字段名是 `accepted_formats`，不是 `formats`——写错不会报错，只会让格式判定静默失效。
+`source` 和 `notes` 缺了会被 `--validate` 告警：前者保证数值可追溯，后者是用户能看到的要点。
 
 `canvas` 支持三种写法：
 
@@ -397,15 +425,38 @@ python scripts/test_spec.py         # 46 项回归测试
 
 ---
 
+## 在 CI 里当发布闸门
+
+`--strict` 让退出码跟着结论走：有 error 级问题就返回 1，`warn` / `info` 不阻断。
+于是「配图尺寸不对」能在合并前被拦住，而不是等发布当天才发现：
+
+```yaml
+- name: 检查配图尺寸
+  run: |
+    pip install .
+    publish-size-check --check assets/*.png --target 小红书 --strict
+```
+
+`--json` 的 stdout 只有 JSON（人类可读报告重定向到 stderr），可以直接喂给 `jq`，不需要先做字符串切片：
+
+```bash
+publish-size-check --check cover.png --target 小红书 --json \
+  | jq -r '.results[0].targets[0].verdict'
+```
+
+不加 `--strict` 时退出码恒为 0，与旧版行为一致——升级不会悄悄卡住已有流水线。
+
+---
+
 ## 测试
 
 ```bash
 python scripts/test_spec.py
 ```
 
-**46 项回归测试，纯标准库，不依赖 pytest。** 自建临时图片、跑完自动清理，退出码 0 / 1 可接 CI。
+**75 项回归测试，纯标准库，不依赖 pytest。** 自建临时图片、跑完自动清理，退出码 0 / 1 可接 CI。
 
-覆盖：规格库自检、图片头解析（PNG/JPEG/GIF/TIFF）、dpi 与物理宽度、`gte` 与 `alt` 语义、单点裁决、行动结论、多图一致性、JSON 契约、别名冲突检测。
+覆盖：规格库自检、图片头解析（PNG / JPEG / GIF / WebP / TIFF）、dpi 与物理宽度、`gte` 与 `alt` 语义、单点裁决、行动结论、多图一致性、JSON 契约（stdout 纯净性）、`--strict` 退出码、格式等价（jpg/jpeg、tif/tiff）、别名冲突检测。
 
 ---
 

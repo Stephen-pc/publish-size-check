@@ -1,6 +1,6 @@
 {
   "name": "publish-size-check",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "发布尺寸检查：对照目标平台规格，检查图片能不能发、哪一项参数过不了。零依赖，只查几何参数。",
   "type": "module",
   "main": "lib/index.js",

@@ -59,7 +59,7 @@ jobs:
               "argparse", "json", "os", "struct", "sys", "zlib", "re",
               "tempfile", "subprocess", "shutil", "pathlib", "typing",
               "collections", "math", "itertools", "textwrap", "unicodedata",
-              "datetime", "io", "unicodedata", "hashlib",
+              "datetime", "io", "unicodedata", "hashlib", "contextlib",
               "spec", "test_spec",
           }
           bad = []

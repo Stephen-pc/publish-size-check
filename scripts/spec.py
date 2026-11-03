@@ -10,10 +10,15 @@ publish-check —— 发布前体检
   spec.py --spec 小红书                   查某平台的发布规格
   spec.py --check a.png b.jpg            体检文件（自动推断平台）
   spec.py --check a.png --target 小红书    按指定平台体检
-  spec.py --check a.png --json           输出 JSON 供程序消费
+  spec.py --check a.png --json           输出 JSON 供程序消费（stdout 只有 JSON）
+  spec.py --check a.png --strict         有不合格项时退出码 1，可当发布闸门
+  spec.py --version                      打印版本号
 """
 
+__version__ = "2.4.0"
+
 import argparse
+import contextlib
 import json
 import os
 import struct
@@ -150,6 +155,8 @@ def read_image_meta(path):
                 return _gif_meta(path)
             if head[:2] in (b"II", b"MM"):
                 return _tiff_meta(path)
+            if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+                return _webp_meta(path)
     except OSError as e:
         return {"error": str(e), "format": "unreadable"}
     return None
@@ -244,8 +251,79 @@ def _tiff_meta(path):
             "note": "TIFF 尺寸解析未实现，请用其他工具确认 dpi"}
 
 
+def _webp_meta(path):
+    """解析 WebP 的尺寸与透明通道。
+
+    WebP 是 RIFF 容器，尺寸可能落在三种 chunk 里，都得认：
+      VP8X —— 扩展格式，画布尺寸最权威，alpha 标志也在这里；
+      VP8L —— 无损位图，尺寸是 14bit 的 width-1 / height-1；
+      VP8  —— 有损位图，尺寸在关键帧头里，低 2 位是缩放系数要抹掉。
+
+    不认 WebP 的后果比「少认一个格式」严重得多：w/h 全为 None 之后，
+    尺寸、比例、多图一致性三组判定会集体静默跳过，用户拿到的是
+    「格式不支持」而不是「你的图差 56px」——后者才是他真正要的答案。
+    WebP 没有 dpi 概念，这里如实返回 None，交给上层按未知处理。
+    """
+    with open(path, "rb") as f:
+        f.seek(12)  # 跳过 RIFF<size>WEBP
+        w = h = None
+        has_alpha = None
+        lossless = False
+        while True:
+            head = f.read(8)
+            if len(head) < 8:
+                break
+            fourcc = head[:4]
+            (length,) = struct.unpack("<I", head[4:8])
+            data = f.read(length)
+            if len(data) < length:
+                break
+            if fourcc == b"VP8X":
+                has_alpha = bool(data[0] & 0x10)
+                w = int.from_bytes(data[4:7], "little") + 1
+                h = int.from_bytes(data[7:10], "little") + 1
+                break
+            if fourcc == b"VP8L":
+                if not data or data[0] != 0x2F:
+                    continue
+                bits = int.from_bytes(data[1:5], "little")
+                w = (bits & 0x3FFF) + 1
+                h = ((bits >> 14) & 0x3FFF) + 1
+                has_alpha = bool((bits >> 28) & 1)
+                lossless = True
+                break
+            if fourcc == b"VP8 ":
+                if data[3:6] != b"\x9d\x01\x2a":
+                    continue
+                w, h = struct.unpack("<HH", data[6:10])
+                w &= 0x3FFF
+                h &= 0x3FFF
+                has_alpha = False
+                break
+            # ICCP / EXIF / XMP / ANIM 等块与尺寸无关，跳过即可。
+            # RIFF 规定奇数长度要补 1 字节对齐，漏掉会让后续读取错位。
+            if length % 2:
+                f.seek(1, 1)
+        return {"format": "webp", "w": w, "h": h, "dpi": None,
+                "has_alpha": has_alpha, "lossless": lossless, "vector": False}
+
+
 VECTOR_EXT = {".pdf", ".svg", ".eps", ".ai", ".cdr"}
 EDITABLE_EXT = {".psd", ".ai", ".svg", ".pptx", ".xlsx", ".docx", ".fig", ".sketch"}
+
+# 同一个格式的不同写法。jpg/jpeg、tif/tiff 在平台规格里混着出现，
+# 不归一化就会把「格式合规」误判成 FORMAT 错误——用户照提示改成另一种写法，
+# 结果还是报错，这种假问题最伤信任。
+FORMAT_ALIASES = {"jpg": "jpeg", "jpeg": "jpeg", "tif": "tiff", "tiff": "tiff"}
+
+# 需要改格式时优先建议哪一种：无损优先，其次体积友好的 jpg。
+_FIX_FORMAT_ORDER = ("png", "jpg", "jpeg", "pdf")
+
+
+def _fmt_key(name):
+    """把格式名归一化成可比较的键。"""
+    n = (name or "").lower().lstrip(".")
+    return FORMAT_ALIASES.get(n, n)
 
 
 def examine_file(path):
@@ -287,14 +365,14 @@ def check_against(info, slot, platform):
 
     # 1. 格式
     accepted = slot.get("accepted_formats") or []
-    if accepted and info["ext"] and info["ext"] not in accepted \
-            and not (info["ext"] == "jpeg" and "jpg" in accepted):
-        if info["ext"] not in ("jpeg",) or "jpg" not in accepted:
-            issues.append({
-                "level": "error", "code": "FORMAT",
-                "msg": f"格式 .{info['ext']} 不在接受列表 {'/'.join(accepted)} 内",
-                "fix": f"另存为 {accepted[0]} 格式后重新提交",
-            })
+    if accepted and info["ext"] and _fmt_key(info["ext"]) not in {_fmt_key(a) for a in accepted}:
+        prefer = next((f for f in _FIX_FORMAT_ORDER
+                       if _fmt_key(f) in {_fmt_key(a) for a in accepted}), accepted[0])
+        issues.append({
+            "level": "error", "code": "FORMAT",
+            "msg": f"格式 .{info['ext']} 不在接受列表 {'/'.join(accepted)} 内",
+            "fix": f"另存为 {prefer} 格式后重新提交",
+        })
 
     # 2. 体积
     mb = slot.get("max_bytes")
@@ -838,7 +916,12 @@ VERDICT_TAG = {
 }
 
 
-def cmd_check(spec, files, target, as_json):
+def _run_check(spec, files, target, as_json):
+    """执行体检并渲染人类可读报告，返回 (results, multi_blocks)。
+
+    JSON 的序列化不在这里做——由 cmd_check 决定往哪个流写，
+    这样 stdout 才能在 --json 时保持纯净。
+    """
     platform, how = (None, None)
     if target:
         platform, how = resolve_platform(spec, target)
@@ -1008,17 +1091,53 @@ def cmd_check(spec, files, target, as_json):
                     print(f"           修法: {i['fix']}")
             print()
 
-    if as_json:
-        print(json.dumps({"ok": True, "results": results,
-                          "multi_image": multi_blocks},
-                         ensure_ascii=False, indent=2))
-    return results
+    return results, multi_blocks
+
+
+def cmd_check(spec, files, target, as_json):
+    """体检入口，返回 (results, multi_blocks)。
+
+    --json 时把整段人类可读渲染重定向到 stderr，stdout 只留一份可被
+    json.loads 直接吃下的完整 JSON。此前两者混在 stdout，调用方必须先做
+    `out[out.index("{"):]` 这种字符串切片才能解析——把「输出格式」的锅
+    甩给了每一个下游使用者，程序化消费不该有这种前置条件。
+    """
+    if not as_json:
+        return _run_check(spec, files, target, False)
+
+    with contextlib.redirect_stdout(sys.stderr):
+        results, multi_blocks = _run_check(spec, files, target, True)
+    print(json.dumps({"ok": True, "results": results,
+                      "multi_image": multi_blocks},
+                     ensure_ascii=False, indent=2))
+    return results, multi_blocks
+
+
+def blocking(results, multi_blocks):
+    """--strict 的判据：只要存在 error 级问题就算不通过。
+
+    warn 和 info 不阻断——它们分别是「可以发但有风险」和「了解一下」，
+    拿来卡 CI 会把正常发布一起拦住，闸门就没人愿意挂了。
+    文件不存在也算阻断：检查都没做成的输入不该被当成通过。
+    """
+    for r in results:
+        if not r.get("exists", True):
+            return True
+        for t in r.get("targets", []):
+            if t.get("verdict") == "no":
+                return True
+    for b in multi_blocks or []:
+        if any(i.get("level") == "error" for i in b.get("issues", [])):
+            return True
+    return False
 
 
 
 def main():
     ap = argparse.ArgumentParser(description="发布前体检：对照平台规格检查文件")
     ap.add_argument("files", nargs="*", help="待体检文件")
+    ap.add_argument("--version", action="version",
+                    version=f"publish-size-check {__version__}")
     ap.add_argument("--list", action="store_true", help="列出规格库全部平台")
     ap.add_argument("--spec", metavar="平台", help="查询某平台发布规格")
     ap.add_argument("--check", action="store_true", help="执行体检")
@@ -1026,7 +1145,9 @@ def main():
                     help="自检规格库（改完 platforms.json 后跑一次）")
     ap.add_argument("--spec-path", metavar="路径", help="指定规格库文件，配合 --validate")
     ap.add_argument("--target", "-t", metavar="平台", help="指定目标平台")
-    ap.add_argument("--json", action="store_true", help="输出 JSON")
+    ap.add_argument("--json", action="store_true", help="输出 JSON（stdout 只有 JSON）")
+    ap.add_argument("--strict", action="store_true",
+                    help="有不合格项时以退出码 1 结束，可当发布前的 CI 闸门")
     args = ap.parse_args()
 
     if args.validate:
@@ -1036,17 +1157,22 @@ def main():
 
     if args.list:
         cmd_list(spec)
-        return
+        return 0
     if args.spec:
         cmd_spec(spec, args.spec)
-        return
+        return 0
     if args.check or args.files:
         if not args.files:
             die("需要至少一个待体检文件，例如：spec.py --check a.png")
-        cmd_check(spec, args.files, args.target, args.json)
-        return
+        results, multi_blocks = cmd_check(spec, args.files, args.target, args.json)
+        if args.strict and blocking(results, multi_blocks):
+            return 1
+        return 0
     ap.print_help()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    # 必须把返回值交给 sys.exit：--strict 靠退出码表达结论，
+    # 直接写 main() 会让返回值被丢弃，闸门永远是 0。
+    sys.exit(main())

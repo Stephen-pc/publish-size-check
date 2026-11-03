@@ -30,7 +30,7 @@ try:
 except ImportError:
     pass
 
-PASS, FAIL = [], []
+PASS, FAIL, SKIP = [], [], []
 
 
 def check(name, cond, detail=""):
@@ -42,10 +42,43 @@ def check(name, cond, detail=""):
         print(f"  [FAIL] {name} {detail}")
 
 
+def skip(name, why):
+    """无法在本形态下验证的检查。
+
+    插件形态会被复制进版本化 cache，那一层里没有 pyproject.toml ——
+    这不是缺陷，是形态差异。如实记为跳过，不伪装成通过。
+    """
+    SKIP.append(name)
+    print(f"  [--] {name}（跳过：{why}）")
+
+
+def find_repo_root(start):
+    """向上找含 pyproject.toml 与 scripts/spec.py 的仓库根。"""
+    p = start
+    for _ in range(6):
+        if (p / "pyproject.toml").is_file() and (p / "scripts" / "spec.py").is_file():
+            return p
+        if p.parent == p:
+            break
+        p = p.parent
+    return None
+
+
 def run(*args):
     r = subprocess.run([PY, str(SPEC), *[str(a) for a in args]],
                        capture_output=True, text=True, encoding="utf-8")
     return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def run_split(*args):
+    """分别返回 stdout 与 stderr。
+
+    --json 的契约是「stdout 只有 JSON、报告正文走 stderr」，
+    要验证这条就必须把两个流分开看，合并后的字符串证明不了任何事。
+    """
+    r = subprocess.run([PY, str(SPEC), *[str(a) for a in args]],
+                       capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, (r.stdout or ""), (r.stderr or "")
 
 
 def make_png(path, w, h, dpi=None):
@@ -61,6 +94,33 @@ def make_png(path, w, h, dpi=None):
         out += chunk(b"pHYs", struct.pack(">IIB", ppm, ppm, 1))
     out += chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
     path.write_bytes(out)
+
+
+def _riff(chunks):
+    """按 RIFF 规则拼 WebP 容器，奇数长度的块要补 1 字节对齐。"""
+    body = b"WEBP"
+    for fourcc, payload in chunks:
+        body += fourcc + struct.pack("<I", len(payload)) + payload
+        if len(payload) % 2:
+            body += b"\x00"
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+def make_webp(path, w, h, variant="VP8X", alpha=False):
+    """生成三种 WebP 变体：VP8X（扩展）/ VP8L（无损）/ VP8 （有损）。"""
+    if variant == "VP8X":
+        flags = 0x10 if alpha else 0x00
+        payload = (bytes([flags, 0, 0, 0])
+                   + (w - 1).to_bytes(3, "little")
+                   + (h - 1).to_bytes(3, "little"))
+        data = _riff([(b"VP8X", payload)])
+    elif variant == "VP8L":
+        bits = (w - 1) | ((h - 1) << 14) | ((1 if alpha else 0) << 28)
+        data = _riff([(b"VP8L", bytes([0x2F]) + bits.to_bytes(4, "little"))])
+    else:
+        payload = b"\x00\x00\x00" + b"\x9d\x01\x2a" + struct.pack("<HH", w, h)
+        data = _riff([(b"VP8 ", payload)])
+    path.write_bytes(data)
 
 
 def main():
@@ -223,23 +283,28 @@ def main():
         code, out = run("--check", *many, "-t", "小红书")
         check("超出单次张数上限被抓出", "超过该平台单次上限" in out, out[-400:])
 
-        # JSON 也要带上多图结论，便于下游消费
-        code, out = run("--check", m1, m2, m3, "-t", "小红书", "--json")
+        # JSON 也要带上多图结论，便于下游消费。
+        # 这里直接解析整个 stdout：--json 的契约是「stdout 只有 JSON」。
+        # 旧测试靠 out[out.index("{"):] 跳过前面的中文行才能解析，
+        # 那等于把输出格式的锅甩给了每一个下游使用者，属于在测试里固化缺陷。
+        code, jout, jerr = run_split("--check", m1, m2, m3, "-t", "小红书", "--json")
         try:
-            body = json.loads(out[out.index("{"):])
+            body = json.loads(jout)
+            check("--json 的 stdout 是纯 JSON", True)
             check("JSON 含 multi_image 字段", "multi_image" in body)
             check("JSON 多图结论非空", len(body.get("multi_image") or []) >= 1)
             check("JSON 多图块带 hint", bool(body["multi_image"][0].get("hint")))
+            check("--json 时报告正文走 stderr", "###" in jerr, jerr[:80])
         except (ValueError, KeyError, IndexError) as e:
-            check("JSON 含 multi_image 字段", False, str(e))
+            check("--json 的 stdout 是纯 JSON", False, str(e))
 
         print("\n=== 容错与契约 ===")
         code, out = run("--check", tmp / "none.png", "-t", "小红书")
         check("缺文件不崩溃", code == 0 and "文件不存在" in out, out[:80])
 
-        code, out = run("--check", d916, "-t", "抖音", "--json")
+        code, jout, jerr = run_split("--check", d916, "-t", "抖音", "--json")
         try:
-            body = json.loads(out[out.index("{"):])
+            body = json.loads(jout)
             check("JSON 可解析", body.get("ok") is True)
             tgt = body["results"][0]["targets"][0]
             check("JSON 含 verdict 字段", "verdict" in tgt)
@@ -260,6 +325,108 @@ def main():
         asp.write_text(json.dumps(d2, ensure_ascii=False), encoding="utf-8")
         code, out = run("--validate", "--spec-path", asp)
         check("能抓出 aspect 不自洽", code == 1 and "不自洽" in out, out[:120])
+
+        print("\n=== WebP 解析 ===")
+        # WebP 现在是 AI 出图的主流格式。不认它的后果不是「少支持一种格式」，
+        # 而是 w/h 全为 None 之后，尺寸 / 比例 / 多图一致性三组判定集体静默跳过。
+        for variant, w, h in [("VP8X", 1080, 1440),
+                              ("VP8L", 1242, 1660),
+                              ("VP8", 800, 600)]:
+            wp = tmp / f"v_{variant}.webp"
+            make_webp(wp, w, h, variant)
+            wi = S.examine_file(str(wp))
+            check(f"WebP {variant} 尺寸解析正确",
+                  wi.get("w") == w and wi.get("h") == h,
+                  f"得到 {wi.get('w')}x{wi.get('h')}")
+
+        # 前置奇数长度块（RIFF 要求补 1 字节对齐），漏掉会让后续读取整体错位
+        odd = tmp / "odd.webp"
+        odd.write_bytes(_riff([(b"ICCP", b"x" * 7),
+                               (b"VP8X", bytes([0, 0, 0, 0])
+                                + (900 - 1).to_bytes(3, "little")
+                                + (1200 - 1).to_bytes(3, "little"))]))
+        oi = S.examine_file(str(odd))
+        check("WebP 奇数长度块后仍能对齐", oi.get("w") == 900 and oi.get("h") == 1200,
+              f"得到 {oi.get('w')}x{oi.get('h')}")
+
+        wa = tmp / "alpha.webp"
+        make_webp(wa, 1080, 1080, "VP8X", alpha=True)
+        check("WebP VP8X 的 alpha 标志被识别",
+              S.examine_file(str(wa)).get("has_alpha") is True)
+
+        # 端到端：webp 投小红书，必须同时给出格式和尺寸两条结论
+        code, out = run("--check", tmp / "v_VP8X.webp", "-t", "小红书")
+        check("WebP 端到端能报出尺寸问题", "小于要求" in out, out[:120])
+        check("WebP 端到端能报出格式问题", "不在接受列表" in out, out[:120])
+
+        print("\n=== CLI 契约（--version / --json / --strict）===")
+        code, out = run("--version")
+        check("--version 正常返回", code == 0, out[:80])
+        check("--version 打印版本号", S.__version__ in out, out[:80])
+
+        # 版本号散落在三处（spec.py / pyproject.toml / package.json），
+        # 发版时最容易漏改其中一处，导致装出来的和仓库里声称的不是一回事。
+        # 插件形态下这三份文件不在同一层，此时跳过而不是误判为失败。
+        import re as _re
+        root = find_repo_root(HERE)
+        if root is None:
+            skip("版本号三处一致", "当前形态没有 pyproject.toml / package.json")
+        else:
+            pyproj = (root / "pyproject.toml").read_text(encoding="utf-8")
+            pkg = json.loads((root / "package.json").read_text(encoding="utf-8"))
+            m = _re.search(r'^version\s*=\s*"([^"]+)"', pyproj, _re.M)
+            check("pyproject 版本与 spec.py 一致",
+                  bool(m) and m.group(1) == S.__version__,
+                  f"pyproject={m.group(1) if m else '?'} spec={S.__version__}")
+            check("package.json 版本与 spec.py 一致",
+                  pkg.get("version") == S.__version__,
+                  f"package={pkg.get('version')} spec={S.__version__}")
+
+        badf = tmp / "strict_bad.png"
+        make_png(badf, 1024, 1024)
+        okf = tmp / "strict_ok.png"
+        make_png(okf, 1242, 1660)
+        code, _ = run("--check", badf, "-t", "小红书", "--strict")
+        check("--strict 不合格时退出码 1", code == 1, f"得到 {code}")
+        code, _ = run("--check", okf, "-t", "小红书", "--strict")
+        check("--strict 合格时退出码 0", code == 0, f"得到 {code}")
+        code, _ = run("--check", badf, "-t", "小红书")
+        check("不加 --strict 时退出码仍为 0（向后兼容）", code == 0, f"得到 {code}")
+        code, _ = run("--check", tmp / "never.png", "-t", "小红书", "--strict")
+        check("--strict 文件缺失时退出码 1", code == 1, f"得到 {code}")
+
+        print("\n=== 格式等价（jpg/jpeg、tif/tiff）===")
+        # 平台规格里两种写法混着出现。不归一化会把合规文件误判成 FORMAT 错误，
+        # 用户照着提示改成另一种写法，结果还是报错——假问题最伤信任。
+        slot_j = {"slot": "c", "canvas": {"w": 1080, "h": 1440},
+                  "accepted_formats": ["jpeg"]}
+        fake = {"ext": "jpg", "w": 1080, "h": 1440, "bytes": 1000, "mb": 0.0,
+                "format": "jpeg", "vector": False, "has_alpha": False}
+        codes = [i["code"] for i in S.check_against(fake, slot_j, {})]
+        check(".jpg 文件对 accepted=['jpeg'] 不误报", "FORMAT" not in codes, str(codes))
+        slot_t = {"slot": "c", "canvas": {"w": 1080, "h": 1440},
+                  "accepted_formats": ["tif"]}
+        codes = [i["code"] for i in S.check_against(dict(fake, ext="tiff", format="tiff"),
+                                                    slot_t, {})]
+        check(".tiff 文件对 accepted=['tif'] 不误报", "FORMAT" not in codes, str(codes))
+        # 反证：真不合规的格式仍要报，且修法给的是无损优先的格式
+        fixes = [i["fix"] for i in S.check_against(dict(fake, ext="webp", format="webp"),
+                                                   slot_j, {})]
+        check("真不合规的格式仍报 FORMAT", bool(fixes), str(fixes))
+        check("修法优先建议 png/jpg 而非 jpeg", any("jpg" in f or "png" in f for f in fixes),
+              str(fixes))
+
+        print("\n=== demo 输出顺序 ===")
+        # 父进程 stdout 在管道下是块缓冲的，子进程直接写同一个 fd。
+        # 不在启动子进程前冲刷，就会出现「五段结论先出、五个标题后出」。
+        r = subprocess.run([PY, str(HERE.parent / "demo.py")],
+                           capture_output=True, text=True, encoding="utf-8")
+        combined = (r.stdout or "") + (r.stderr or "")
+        first_title = combined.find("场景 1")
+        first_body = combined.find("### ")
+        check("demo 标题先于体检结果输出",
+              first_title != -1 and first_body != -1 and first_title < first_body,
+              f"标题位置={first_title} 结果位置={first_body}")
 
         print("\n=== 输出编码（Windows 控制台兼容）===")
         # 本工具输出全是中文。Windows 上 Python 默认按控制台代码页编码，
@@ -310,7 +477,12 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
 
     print(f"\n{'='*40}")
-    print(f"通过 {len(PASS)} / 失败 {len(FAIL)}")
+    tail = f"通过 {len(PASS)} / 失败 {len(FAIL)}"
+    if SKIP:
+        tail += f" / 跳过 {len(SKIP)}"
+    print(tail)
+    for s in SKIP:
+        print(f"  跳过: {s}")
     for f in FAIL:
         print(f"  失败: {f}")
     return 1 if FAIL else 0
