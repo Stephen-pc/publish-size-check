@@ -1,13 +1,14 @@
 # publish-size-check
 
-[![CI](https://github.com/Stephen-pc/publish-size-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Stephen-pc/publish-size-check/actions/workflows/ci.yml)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#为什么需要它)
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+**发布前先体检：这张图能不能发、是哪一项过不了、还能不能救。**
 
-> 发布尺寸检查 —— 对照目标平台的几何规格，告诉你这张图**能不能发、是哪一项过不了**。
+AI 出图默认 1024×1024，小红书方版要 1080×1080——差 56px，而平台只说「图片不符合要求」。
+这个工具告诉你差在哪一项，以及是不是真的救不回来。
 
-零依赖（纯标准库，不需要 Pillow）、原件只读、结果确定。
+```bash
+git clone https://github.com/Stephen-pc/publish-size-check.git
+cd publish-size-check && python demo.py    # 五种典型场景，跑完自动清理
+```
 
 ```console
 $ python scripts/spec.py --check cover.png --target 小红书
@@ -20,6 +21,10 @@ $ python scripts/spec.py --check cover.png --target 小红书
          [X] 宽度 1024px 小于要求 1080px
              修法: 重新导出为 ≥1080px 宽（放大现有图片无法恢复清晰度）
 ```
+
+零依赖（纯标准库，不需要 Pillow）· 原件只读 · 结果确定 · Python 3.8+
+
+[![CI](https://github.com/Stephen-pc/publish-size-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Stephen-pc/publish-size-check/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE) [![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/) [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#为什么需要它)
 
 ---
 
