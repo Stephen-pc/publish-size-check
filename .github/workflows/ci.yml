@@ -109,6 +109,8 @@ jobs:
         run: publish-size-check --list
 
       - name: 端到端检查一张图
+        # Windows runner 默认是 PowerShell，不认 heredoc，这里显式用 bash
+        shell: bash
         run: |
           python - <<'PY'
           import struct, zlib
