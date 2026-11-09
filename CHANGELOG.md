@@ -2,6 +2,18 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.4.1] - 2026-11-09
+
+### 修复
+- **`pip install .` 装出来的版本一执行就报「规格库缺失」。** `pyproject.toml` 用 `py-modules` 打包，而 `[tool.setuptools.package-data]` 只对 package 生效，对单文件模块无效——`references/platforms.json` 根本没进安装包。
+  - 症状很迷惑：仓库里 `python scripts/spec.py` 一切正常，`pip install` 之后 `publish-size-check --list` 直接退出，报的路径是 `<venv>/Lib/references/platforms.json`——一个从来不存在的位置。
+  - 修法：改用 `data-files` 把规格库装到 `<prefix>/share/publish-size-check/`，运行时按 `sys.prefix` / `sys.base_prefix` 查找。
+  - 顺带修了查找候选里的一个死路径：原写法 `here.parent / "share" / ...` 在 venv 里等于 `Lib/share/...`，永远不会命中。
+- **规格库缺失时的报错信息。** 原来只打印一条路径，用户无从自查。现在列出全部查找位置，并提示可用 `PUBLISH_SIZE_CHECK_SPEC` 指定。
+
+### 变更
+- CI 新增 `pip 安装可用性` 任务（Ubuntu + Windows）：真的 `pip install .`，再跑 `--list` 和一次端到端检查。原有 CI 只测源码形态，看不见这类「装了但跑不起来」的问题。
+
 ## [2.4.0] - 2026-11-03
 
 ### 新增

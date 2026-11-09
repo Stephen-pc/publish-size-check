@@ -15,7 +15,7 @@ publish-check —— 发布前体检
   spec.py --version                      打印版本号
 """
 
-__version__ = "2.4.0"
+__version__ = "2.4.1"
 
 import argparse
 import contextlib
@@ -95,13 +95,22 @@ def _find_spec_path():
         here.parent / "references" / "platforms.json",   # 源码仓库
         here / "references" / "platforms.json",          # 打包安装
         here / "platforms.json",                         # 扁平安装
-        here.parent / "share" / "publish-size-check" / "platforms.json",
+        # pip 安装：data-files 落在 <prefix>/share/publish-size-check 下。
+        # 早先这里写的是 here.parent/"share"/...，在 venv 里等于 Lib/share，
+        # 永远不会命中——装了却找不到规格库就是这么来的。
+        Path(sys.prefix) / "share" / "publish-size-check" / "platforms.json",
+        Path(sys.base_prefix) / "share" / "publish-size-check" / "platforms.json",
         Path.cwd() / "references" / "platforms.json",     # 在仓库根目录下运行
     ]
     for c in candidates:
         if c.is_file():
             return c
+    global _SPEC_SEARCHED
+    _SPEC_SEARCHED = candidates
     return candidates[0]
+
+
+_SPEC_SEARCHED = []
 
 
 SPEC_PATH = _find_spec_path()
@@ -114,7 +123,11 @@ def load_spec(path=SPEC_PATH):
         with open(path, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        die(f"规格库缺失：{path}")
+        # 报「找不到」的时候必须说清找过哪儿，否则用户只能看到一条死路径。
+        # 装了却找不到规格库是曾经真实发生过的故障（data-files 没配）。
+        looked = "\n".join(f"    - {c}" for c in (_SPEC_SEARCHED or [path]))
+        die(f"规格库缺失：{path}\n  已查找以下位置：\n{looked}\n"
+            f"  可以用环境变量 PUBLISH_SIZE_CHECK_SPEC 指定规格库路径。")
     except json.JSONDecodeError as e:
         die(f"规格库 JSON 解析失败：{e}")
 

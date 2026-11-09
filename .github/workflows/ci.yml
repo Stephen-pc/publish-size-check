@@ -84,6 +84,48 @@ jobs:
           print("OK：仅使用标准库")
           PY
 
+  install:
+    name: pip 安装可用性 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # 装完能跑才算装成功。曾经的真实故障：pyproject 用 py-modules 打包，
+      # 而 [tool.setuptools.package-data] 对 py-modules 不生效，于是
+      # references/platforms.json 根本没进安装包——pip 装出来的版本一执行
+      # 就报「规格库缺失」，而仓库源码里跑一切正常。原有 CI 只测源码形态，
+      # 完全看不见这类问题。
+      - name: 安装
+        run: python -m pip install .
+
+      - name: 规格库随包到位
+        run: publish-size-check --list
+
+      - name: 端到端检查一张图
+        run: |
+          python - <<'PY'
+          import struct, zlib
+
+          def chunk(t, d):
+              c = t + d
+              return struct.pack(">I", len(d)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
+
+          raw = b"".join(b"\x00" + bytes(1024 * 3) for _ in range(1024))
+          png = (b"\x89PNG\r\n\x1a\n"
+                 + chunk(b"IHDR", struct.pack(">IIBBBBB", 1024, 1024, 8, 2, 0, 0, 0))
+                 + chunk(b"IDAT", zlib.compress(raw, 6))
+                 + chunk(b"IEND", b""))
+          open("probe.png", "wb").write(png)
+          PY
+          publish-size-check --check probe.png --target 小红书
+
   windows-encoding:
     name: Windows 控制台编码
     runs-on: windows-latest

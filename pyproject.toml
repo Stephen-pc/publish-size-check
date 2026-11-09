@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "publish-size-check"
-version = "2.4.0"
+version = "2.4.1"
 description = "发布尺寸检查：对照目标平台规格，检查图片能不能发、哪一项参数过不了。零依赖，只查几何参数。"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -41,5 +41,9 @@ Issues = "https://github.com/Stephen-pc/publish-size-check/issues"
 py-modules = ["spec"]
 package-dir = { "" = "scripts" }
 
-[tool.setuptools.package-data]
-"*" = ["*.json"]
+# 规格库必须随包安装，否则 pip 装完运行时找不到 platforms.json。
+# 注意 [tool.setuptools.package-data] 对 py-modules 不生效——那只作用于
+# package，而这里是单文件模块，所以早期版本装出来的 publish-size-check
+# 一执行就报「规格库缺失」。改用 data-files 装到 <prefix>/share 下。
+[tool.setuptools.data-files]
+"share/publish-size-check" = ["references/platforms.json"]
